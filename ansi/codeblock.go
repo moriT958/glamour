@@ -3,6 +3,7 @@ package ansi
 import (
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 
 	"github.com/alecthomas/chroma/v2"
@@ -64,6 +65,12 @@ func chromaStyle(style StylePrimitive) string {
 
 // Render renders a CodeBlockElement.
 func (e *CodeBlockElement) Render(w io.Writer, ctx RenderContext) error {
+	if e.Language != "" && ctx.options.CodeBlockRenderer != nil {
+		if text, ok := ctx.options.CodeBlockRenderer(e.Language, e.Code); ok {
+			return renderedCodeBlock(w, ctx, text)
+		}
+	}
+
 	bs := ctx.blockStack
 
 	var indentation uint
@@ -147,5 +154,50 @@ func (e *CodeBlockElement) Render(w io.Writer, ctx RenderContext) error {
 		Style: rules.StylePrimitive,
 	}
 
+	return el.Render(iw, ctx)
+}
+
+// renderedCodeBlock writes text that [Options.CodeBlockRenderer] produced for
+// a code block. It is laid out like a highlighted block and styled like plain
+// text in one, but written as is.
+func renderedCodeBlock(w io.Writer, ctx RenderContext, text string) error {
+	bs := ctx.blockStack
+
+	var indentation uint
+	var margin uint
+	rules := ctx.options.Styles.CodeBlock
+	if rules.Indent != nil {
+		indentation = *rules.Indent
+	}
+	if rules.Margin != nil {
+		margin = *rules.Margin
+	}
+
+	iw := NewIndentWriter(w, int(indentation+margin), func(_ io.Writer) {
+		_, _ = renderText(w, bs.Current().Style.StylePrimitive, " ")
+	})
+	defer iw.Close() //nolint:errcheck
+
+	// Highlighted code ends with a newline, as its source does.
+	if !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+
+	// A highlighting theme colors plain text with its Text style.
+	if rules.Chroma != nil || len(rules.Theme) > 0 {
+		style := rules.StylePrimitive
+		if rules.Chroma != nil {
+			style = rules.Chroma.Text
+		}
+		_, _ = renderText(iw, bs.Current().Style.StylePrimitive, rules.BlockPrefix)
+		_, _ = renderText(iw, style, text)
+		_, _ = renderText(iw, bs.Current().Style.StylePrimitive, rules.BlockSuffix)
+		return nil
+	}
+
+	el := &BaseElement{
+		Token: text,
+		Style: rules.StylePrimitive,
+	}
 	return el.Render(iw, ctx)
 }

@@ -22,6 +22,11 @@ type Options struct {
 	PreserveNewLines bool
 	Styles           StyleConfig
 	ChromaFormatter  string
+
+	// CodeBlockRenderer, if set, is offered the body of every fenced code
+	// block that names a language. When it reports true, its result replaces
+	// the highlighted body; otherwise the block renders as usual.
+	CodeBlockRenderer func(language, code string) (string, bool)
 }
 
 // ANSIRenderer renders markdown content as ANSI escaped sequences.

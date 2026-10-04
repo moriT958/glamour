@@ -196,6 +196,18 @@ func WithInlineTableLinks(inlineTableLinks bool) TermRendererOption {
 	}
 }
 
+// WithCodeBlockRenderer sets a function that renders the body of fenced code
+// blocks itself. It receives the block's language, as it would be passed to
+// the syntax highlighter, and its code. When it reports true, the returned
+// text is laid out like a code block but written without highlighting; when
+// it reports false, the block renders as usual.
+func WithCodeBlockRenderer(r func(language, code string) (string, bool)) TermRendererOption {
+	return func(tr *TermRenderer) error {
+		tr.ansiOptions.CodeBlockRenderer = r
+		return nil
+	}
+}
+
 // WithPreservedNewLines preserves newlines from being replaced.
 func WithPreservedNewLines() TermRendererOption {
 	return func(tr *TermRenderer) error {
